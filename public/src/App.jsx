@@ -372,6 +372,63 @@ export default function App() {
     setShowLog(false);
   }
 
+  function deleteSession(date, sid) {
+    // Remove the session entry for this subject on this date
+    // and subtract from total hours
+    setDailyLog(function(p) {
+      const next = Object.assign({}, p);
+      const day  = Object.assign({}, p[date] || {});
+      const mins = day[sid] || 0;
+      delete day[sid];
+      delete day[sid + "_note"];
+      // If day is now empty, remove it
+      if (Object.keys(day).length === 0) {
+        delete next[date];
+      } else {
+        next[date] = day;
+      }
+      return next;
+    });
+    setHours(function(p) {
+      const next = Object.assign({}, p);
+      const dayData = dailyLog[date] || {};
+      const mins = dayData[sid] || 0;
+      next[sid] = Math.max(0, (p[sid] || 0) - mins);
+      return next;
+    });
+  }
+
+  function adjustSession(date, sid, newMins) {
+    const m = parseInt(newMins) || 0;
+    if (m < 0) return;
+    setDailyLog(function(p) {
+      const next = Object.assign({}, p);
+      const day  = Object.assign({}, p[date] || {});
+      const oldMins = day[sid] || 0;
+      if (m === 0) {
+        delete day[sid];
+        delete day[sid + "_note"];
+        if (Object.keys(day).length === 0) {
+          delete next[date];
+        } else {
+          next[date] = day;
+        }
+      } else {
+        day[sid] = m;
+        next[date] = day;
+      }
+      return next;
+    });
+    setHours(function(p) {
+      const next = Object.assign({}, p);
+      const dayData = dailyLog[date] || {};
+      const oldMins = dayData[sid] || 0;
+      const m2 = parseInt(newMins) || 0;
+      next[sid] = Math.max(0, (p[sid] || 0) - oldMins + m2);
+      return next;
+    });
+  }
+
   // Derived values
   const totalMins  = Object.values(hours).reduce(function(a, b) { return a + b; }, 0);
   const totalSolid = SUBJECTS.reduce(function(a, s) {
@@ -771,15 +828,31 @@ export default function App() {
                         <span style={{fontSize:"11px",color:"#8888aa"}}>{fmtFull(date)}</span>
                         <span style={{fontSize:"11px",color:"#7070cc",fontWeight:600}}>{minsToH(total)+"h"}</span>
                       </div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>
+                      <div style={{display:"flex",flexDirection:"column",gap:"5px"}}>
                         {entries.map(function(sid) {
                           const s    = SUBJECTS.find(function(x){ return x.id===sid; });
                           const note = dayData[sid + "_note"];
                           if (!s) return null;
                           return (
-                            <div key={sid} style={{background:"#1c1c2e",border:"1px solid #2e2e50",borderRadius:"7px",padding:"5px 9px"}}>
-                              <div style={{fontSize:"11px",color:"#a0a0cc"}}>{s.icon + " " + minsToH(dayData[sid]) + "h"}</div>
-                              {note ? <div style={{fontSize:"9px",color:"#44446a",marginTop:"1px"}}>{"📝 " + note}</div> : null}
+                            <div key={sid} style={{background:"#1c1c2e",border:"1px solid #2e2e50",borderRadius:"7px",padding:"7px 10px",display:"flex",alignItems:"center",gap:"8px"}}>
+                              <span style={{fontSize:"15px"}}>{s.icon}</span>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:"11px",color:"#a0a0cc",fontWeight:600}}>{s.name}</div>
+                                <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"3px"}}>
+                                  <input
+                                    type="number"
+                                    defaultValue={dayData[sid]}
+                                    onBlur={function(e){ adjustSession(date, sid, e.target.value); }}
+                                    style={{width:"52px",padding:"2px 6px",fontSize:"11px",background:"#252535",border:"1px solid #333355",borderRadius:"5px",color:"#c0c0e0",textAlign:"center"}}
+                                  />
+                                  <span style={{fontSize:"9px",color:"#44446a"}}>mins</span>
+                                </div>
+                                {note ? <div style={{fontSize:"9px",color:"#44446a",marginTop:"2px"}}>{"📝 " + note}</div> : null}
+                              </div>
+                              <div className="tap" onClick={function(){ deleteSession(date, sid); }}
+                                style={{fontSize:"16px",color:"#663333",padding:"4px",flexShrink:0}}>
+                                🗑
+                              </div>
                             </div>
                           );
                         })}
